@@ -177,7 +177,7 @@ class SqliteTransfer(TransferBase):
 			db.row_factory=self.dict_factory
 			self.cursor=db.cursor()
 		except:
-			logging.error("连接数据库文件'/home/www/userdb.dat'失败！")
+			logging.error("连接数据库文件'./userdb.dat'失败！")
 			return
 		super(SqliteTransfer, self).__init__()
 
