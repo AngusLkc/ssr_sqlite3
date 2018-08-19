@@ -50,7 +50,7 @@ class ServerPool(object):
 		except (KeyboardInterrupt, IOError, OSError) as e:
 			logging.error(e)
 			traceback.print_exc()
-			os.exit(0)
+			os._exit(0)
 		except Exception as e:
 			logging.error(e)
 			traceback.print_exc()
