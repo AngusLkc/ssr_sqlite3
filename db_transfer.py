@@ -25,8 +25,9 @@ class TransferBase(object):
 		curr_transfer = ServerPool.get_instance().get_servers_transfer()
 		dt_transfer = {}
 		for id in self.force_update_transfer:
-			if id in self.last_update_transfer and self.force_update_transfer[id][0]+self.force_update_transfer[id][1]>self.last_update_transfer[id][0]+self.last_update_transfer[id][1]:
-				dt_transfer[id] = [self.force_update_transfer[id][0]-self.last_update_transfer[id][0], self.force_update_transfer[id][1]-self.last_update_transfer[id][1]]
+			if id in self.last_update_transfer:
+				if self.force_update_transfer[id][0]+self.force_update_transfer[id][1]>self.last_update_transfer[id][0]+self.last_update_transfer[id][1]:
+					dt_transfer[id] = [self.force_update_transfer[id][0]-self.last_update_transfer[id][0], self.force_update_transfer[id][1]-self.last_update_transfer[id][1]]
 				del self.last_update_transfer[id]
 		#计算每次增量
 		for id in curr_transfer:
