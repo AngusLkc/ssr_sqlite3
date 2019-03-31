@@ -15,8 +15,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from __future__ import absolute_import, division, print_function, \
-    with_statement
+from __future__ import absolute_import, division, print_function, with_statement
 
 import os
 import json
@@ -26,11 +25,8 @@ import logging
 from shadowsocks.common import to_bytes, to_str, IPNetwork, PortRange
 from shadowsocks import encrypt
 
-
 VERBOSE_LEVEL = 5
-
 verbose = 0
-
 
 def check_python():
     info = sys.version_info
@@ -44,7 +40,6 @@ def check_python():
         print('Python version not supported')
         sys.exit(1)
 
-
 def print_exception(e):
     global verbose
     logging.error(e)
@@ -52,96 +47,59 @@ def print_exception(e):
         import traceback
         traceback.print_exc()
 
-def __version():
-    version_str = ''
-    try:
-        import pkg_resources
-        version_str = pkg_resources.get_distribution('shadowsocks').version
-    except Exception:
-        try:
-            from shadowsocks import version
-            version_str = version.version()
-        except Exception:
-            pass
-    return version_str
-
-def print_shadowsocks():
-    print('ShadowsocksR %s' % __version())
-
-def log_shadowsocks_version():
-    logging.info('ShadowsocksR %s' % __version())
-
 def find_config():
     user_config_path = 'user-config.json'
     config_path = 'config.json'
-
     def sub_find(file_name):
         if os.path.exists(file_name):
             return file_name
         file_name = os.path.join(os.path.abspath('..'), file_name)
         return file_name if os.path.exists(file_name) else None
-
     return sub_find(user_config_path) or sub_find(config_path)
 
 def check_config(config, is_local):
     if config.get('daemon', None) == 'stop':
-        # no need to specify configuration for daemon stop
         return
-
     if is_local and not config.get('password', None):
         logging.error('password not specified')
         print_help(is_local)
         sys.exit(2)
-
-    if not is_local and not config.get('password', None) \
-            and not config.get('port_password', None):
+    if not is_local and not config.get('password', None) and not config.get('port_password', None):
         logging.error('password or port_password not specified')
         print_help(is_local)
         sys.exit(2)
-
     if 'local_port' in config:
         config['local_port'] = int(config['local_port'])
-
     if 'server_port' in config and type(config['server_port']) != list:
         config['server_port'] = int(config['server_port'])
-
     if config.get('local_address', '') in [b'0.0.0.0']:
         logging.warning('warning: local set to listen on 0.0.0.0, it\'s not safe')
     if config.get('server', '') in ['127.0.0.1', 'localhost']:
-        logging.warning('warning: server set to listen on %s:%s, are you sure?' %
-                     (to_str(config['server']), config['server_port']))
+        logging.warning('warning: server set to listen on %s:%s, are you sure?' %(to_str(config['server']), config['server_port']))
     if config.get('timeout', 300) < 100:
-        logging.warning('warning: your timeout %d seems too short' %
-                     int(config.get('timeout')))
+        logging.warning('warning: your timeout %d seems too short' %int(config.get('timeout')))
     if config.get('timeout', 300) > 600:
-        logging.warning('warning: your timeout %d seems too long' %
-                     int(config.get('timeout')))
+        logging.warning('warning: your timeout %d seems too long' %int(config.get('timeout')))
     if config.get('password') in [b'mypassword']:
-        logging.error('DON\'T USE DEFAULT PASSWORD! Please change it in your '
-                      'config.json!')
+        logging.error('DON\'T USE DEFAULT PASSWORD! Please change it in your config.json!')
         sys.exit(1)
     if config.get('user', None) is not None:
         if os.name != 'posix':
             logging.error('user can be used only on Unix')
             sys.exit(1)
-
     encrypt.try_cipher(config['password'], config['method'])
-
 
 def get_config(is_local):
     global verbose
     config = {}
     config_path = None
-    logging.basicConfig(level=logging.INFO,
-                        format='%(levelname)-s: %(message)s')
+    logging.basicConfig(level=logging.INFO,format='%(levelname)-s: %(message)s')
     if is_local:
         shortopts = 'hd:s:b:p:k:l:m:O:o:G:g:c:t:vq'
-        longopts = ['help', 'fast-open', 'pid-file=', 'log-file=', 'user=',
-                    'version']
+        longopts = ['help','fast-open','pid-file=','log-file=','user=']
     else:
         shortopts = 'hd:s:p:k:m:O:o:G:g:c:t:vq'
-        longopts = ['help', 'fast-open', 'pid-file=', 'log-file=', 'workers=',
-                    'forbidden-ip=', 'user=', 'manager-address=', 'version']
+        longopts = ['help','fast-open','pid-file=','log-file=','workers=','forbidden-ip=','user=','manager-address=']
     try:
         optlist, args = getopt.getopt(sys.argv[1:], shortopts, longopts)
         for key, value in optlist:
@@ -150,16 +108,10 @@ def get_config(is_local):
             elif key in ('-h', '--help'):
                 print_help(is_local)
                 sys.exit(0)
-            elif key == '--version':
-                print_shadowsocks()
-                sys.exit(0)
             else:
                 continue
-
         if config_path is None:
             config_path = find_config()
-
-
         if config_path:
             logging.debug('loading config from %s' % config_path)
             with open(config_path, 'rb') as f:
@@ -168,8 +120,6 @@ def get_config(is_local):
                 except ValueError as e:
                     logging.error('found an error in config.json: %s', str(e))
                     sys.exit(1)
-
-
         v_count = 0
         for key, value in optlist:
             if key == '-p':
@@ -194,7 +144,6 @@ def get_config(is_local):
                 config['local_address'] = to_str(value)
             elif key == '-v':
                 v_count += 1
-                # '-vv' turns on more verbose mode
                 config['verbose'] = v_count
             elif key == '-t':
                 config['timeout'] = int(value)
@@ -208,7 +157,6 @@ def get_config(is_local):
                 config['user'] = to_str(value)
             elif key == '--forbidden-ip':
                 config['forbidden_ip'] = to_str(value)
-
             elif key == '-d':
                 config['daemon'] = to_str(value)
             elif key == '--pid-file':
@@ -224,12 +172,10 @@ def get_config(is_local):
         print(e, file=sys.stderr)
         print_help(is_local)
         sys.exit(2)
-
     if not config:
         logging.error('config not specified')
         print_help(is_local)
         sys.exit(2)
-
     config['password'] = to_bytes(config.get('password', b''))
     config['method'] = to_str(config.get('method', 'aes-256-cfb'))
     config['protocol'] = to_str(config.get('protocol', 'origin'))
@@ -260,8 +206,7 @@ def get_config(is_local):
     else:
         config['server'] = to_str(config.get('server', '0.0.0.0'))
         try:
-            config['forbidden_ip'] = \
-                IPNetwork(config.get('forbidden_ip', '127.0.0.0/8,::1/128'))
+            config['forbidden_ip'] = IPNetwork(config.get('forbidden_ip', '127.0.0.0/8,::1/128'))
         except Exception as e:
             logging.error(e)
             sys.exit(2)
@@ -271,13 +216,11 @@ def get_config(is_local):
             logging.error(e)
             sys.exit(2)
         try:
-            config['ignore_bind'] = \
-                IPNetwork(config.get('ignore_bind', '127.0.0.0/8,::1/128,10.0.0.0/8,192.168.0.0/16'))
+            config['ignore_bind'] = IPNetwork(config.get('ignore_bind', '127.0.0.0/8,::1/128,10.0.0.0/8,192.168.0.0/16'))
         except Exception as e:
             logging.error(e)
             sys.exit(2)
     config['server_port'] = config.get('server_port', 8388)
-
     logging.getLogger('').handlers = []
     logging.addLevelName(VERBOSE_LEVEL, 'VERBOSE')
     if config['verbose'] >= 2:
@@ -291,21 +234,15 @@ def get_config(is_local):
     else:
         level = logging.INFO
     verbose = config['verbose']
-    logging.basicConfig(level=level,
-                        format='%(asctime)s %(levelname)-8s %(filename)s:%(lineno)s %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S')
-
+    logging.basicConfig(level=level, format='%(asctime)s %(levelname)-8s %(filename)s:%(lineno)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     check_config(config, is_local)
-
     return config
-
 
 def print_help(is_local):
     if is_local:
         print_local_help()
     else:
         print_server_help()
-
 
 def print_local_help():
     print('''usage: sslocal [OPTION]...
@@ -337,7 +274,6 @@ General options:
 
 Online help: <https://github.com/shadowsocks/shadowsocks>
 ''')
-
 
 def print_server_help():
     print('''usage: ssserver [OPTION]...
@@ -371,7 +307,6 @@ General options:
 Online help: <https://github.com/shadowsocks/shadowsocks>
 ''')
 
-
 def _decode_list(data):
     rv = []
     for item in data:
@@ -383,7 +318,6 @@ def _decode_list(data):
             item = _decode_dict(item)
         rv.append(item)
     return rv
-
 
 def _decode_dict(data):
     rv = {}
@@ -440,5 +374,4 @@ def remove_comment(json):
 
 
 def parse_json_in_str(data):
-    # parse json and convert everything from unicode to str
     return json.loads(data, object_hook=_decode_dict)
