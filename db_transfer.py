@@ -22,34 +22,30 @@ class TransferBase(object):
 	def push_db_all_user(self):
 		if self.pull_ok is False:
 			return
-		curr_transfer = ServerPool.get_instance().get_servers_transfer()
-		dt_transfer = {}
+		current_transfer=ServerPool.get_instance().get_servers_transfer()
+		dt_transfer={}
 		for id in self.force_update_transfer:
 			if id in self.last_update_transfer:
 				if self.force_update_transfer[id][0]+self.force_update_transfer[id][1]>self.last_update_transfer[id][0]+self.last_update_transfer[id][1]:
-					dt_transfer[id] = [self.force_update_transfer[id][0]-self.last_update_transfer[id][0], self.force_update_transfer[id][1]-self.last_update_transfer[id][1]]
+					dt_transfer[id]=[self.force_update_transfer[id][0]-self.last_update_transfer[id][0], self.force_update_transfer[id][1]-self.last_update_transfer[id][1]]
 				del self.last_update_transfer[id]
-		#计算每次增量
-		for id in curr_transfer:
+		for id in current_transfer:
 			if id in self.force_update_transfer:
 				continue
 			if id in self.last_update_transfer:
-				if curr_transfer[id][0] + curr_transfer[id][1] - self.last_update_transfer[id][0] - self.last_update_transfer[id][1] <= 0:
+				if current_transfer[id][0]+current_transfer[id][1]-self.last_update_transfer[id][0]-self.last_update_transfer[id][1]<=0:
 					continue
-				dt_transfer[id] = [curr_transfer[id][0] - self.last_update_transfer[id][0], curr_transfer[id][1] - self.last_update_transfer[id][1]]
+				dt_transfer[id]=[current_transfer[id][0]-self.last_update_transfer[id][0],current_transfer[id][1]-self.last_update_transfer[id][1]]
 			else:
-				if curr_transfer[id][0] + curr_transfer[id][1] <= 0:
+				if current_transfer[id][0]+current_transfer[id][1]<=0:
 					continue
-				dt_transfer[id] = [curr_transfer[id][0], curr_transfer[id][1]]
-		#保存每次增量
-		update_transfer = self.update_all_user(dt_transfer)
-		#累加每次增量
-		for id in update_transfer:
+				dt_transfer[id]=[current_transfer[id][0],current_transfer[id][1]]
+		self.update_all_user(dt_transfer)
+		for id in dt_transfer:
 			if id not in self.force_update_transfer:
-				last = self.last_update_transfer.get(id, [0,0])
-				self.last_update_transfer[id] = [last[0]+update_transfer[id][0], last[1]+update_transfer[id][1]]
-		#清理强制更新表相关记录
-		self.force_update_transfer = {}
+				last=self.last_update_transfer.get(id,[0,0])
+				self.last_update_transfer[id]=[last[0]+dt_transfer[id][0],last[1]+dt_transfer[id][1]]
+		self.force_update_transfer={}
 
 	def del_server_out_of_bound_safe(self, last_rows, rows):
 		cur_servers = {} #记录每次读取配置的所有有效端口服务,port=>passwd
