@@ -47,65 +47,51 @@ class TransferBase(object):
 				self.last_update_transfer[id]=[last[0]+dt_transfer[id][0],last[1]+dt_transfer[id][1]]
 		self.force_update_transfer={}
 
-	def del_server_out_of_bound_safe(self, last_rows, rows):
-		cur_servers = {} #记录每次读取配置的所有有效端口服务,port=>passwd
-		new_servers = {} #记录每次读取配置后需要新启动的端口,port=>(passwd,cfg)
-		config = shell.get_config(False)
+	def del_server_out_of_bound_safe(self, rows):
+		cur_servers = {} #存放每次整理参数所有有效端口号
+		new_servers = {} #存放由于参数变更或新增的端口号
+		cur_running = ServerPool.get_instance().tcp_servers_pool
 		for row in rows:
-			#超流判断
-			allow = row['u'] + row['d'] < row['quota']
+			if row['u'] + row['d'] >= row['quota']: #超流了
+				continue
 			port = row['port']
-			#转换密码编码为utf-8编码
-			passwd = common.to_bytes(row['passwd'])
+			passwd = self.to_bytes(row['passwd'])
 			if hasattr(passwd, 'encode'):
 				passwd = passwd.encode('utf-8')
 			cfg = {'password': passwd}
-			#把端口参数存入cfg
 			read_config_keys = ['method', 'obfs', 'obfs_param', 'protocol', 'protocol_param', 'speed_limit_per_user']
-			for name in read_config_keys:
-				if name in row and row[name]:
-					cfg[name] = row[name]
+			for param_key in read_config_keys:
+				if param_key in row and row[param_key]:
+					cfg[param_key] = row[param_key]
 			merge_config_keys = ['password'] + read_config_keys
-			#转换端口参数值为utf-8编码
 			for name in cfg.keys():
 				if hasattr(cfg[name], 'encode'):
 					try:
 						cfg[name] = cfg[name].encode('utf-8')
 					except Exception as e:
-						logging.warning('encode cfg key "%s" fail, val "%s"' % (name, cfg[name]))
-			#有多个用户使用相同的端口
+						logging.warning('encode cfg key "%s" fail, val "%s"' %(name, cfg[name]))
 			if port not in cur_servers:
 				cur_servers[port] = passwd
 			else:
 				logging.error('端口冲突: [%s]' %(port))
 				continue
-			#如果当前端口允许运行
-			if allow:
-				cfgchange = False
-				#检查端口参数变更
-				if port in ServerPool.get_instance().tcp_servers_pool:
-					relay = ServerPool.get_instance().tcp_servers_pool[port]
-					for name in merge_config_keys:
-						if name in cfg and not self.cmp(cfg[name], relay._config[name]):
-							cfgchange = True
-							break
-			#停止需要重启的端口服务,并把端口参数放入new_servers
-			if ServerPool.get_instance().server_is_run(port) > 0:
-				if cfgchange:
-					self.force_update_transfer[port] = ServerPool.get_instance().get_server_transfer(port)
-					ServerPool.get_instance().cb_del_server(port)
-					new_servers[port] = (passwd, cfg)
-			#新增的端口服务放入new_server
-			elif allow and port > 0 and port < 65536 and ServerPool.get_instance().server_run_status(port) is False:
-				self.new_server(port, passwd, cfg)
-		#关闭需要停止服务的端口
-		for row in last_rows:
-			if row['port'] not in cur_servers:
-				self.force_update_transfer[row['port']] = ServerPool.get_instance().get_server_transfer(row['port'])
-				ServerPool.get_instance().cb_del_server(row['port'])
-		#启动新增的端口服务和需要重启的端口服务
+			#处理参数变更和需要新增的服务端口
+			if port in cur_running:
+				port_param = ServerPool.get_instance().get_config(port)
+				for name in merge_config_keys:
+					if port_param and cfg[name] and port_param[name] and not self.cmp(cfg[name], port_param[name]):
+						self.force_update_transfer[port] = ServerPool.get_instance().get_server_transfer(port)
+						ServerPool.get_instance().cb_del_server(port)
+						new_servers[port] = (passwd, cfg)
+						break
+			else:
+				new_servers[port] = (passwd, cfg)
+		#关闭已失效的端口服务
+		for port in cur_running:
+			if port not in cur_servers:
+				self.force_update_transfer[port] = ServerPool.get_instance().get_server_transfer(port)
+				ServerPool.get_instance().cb_del_server(port)
 		if len(new_servers) > 0:
-			from shadowsocks import eventloop
 			self.event.wait(eventloop.TIMEOUT_PRECISION + eventloop.TIMEOUT_PRECISION / 2)
 			for port in new_servers.keys():
 				passwd, cfg = new_servers[port]
