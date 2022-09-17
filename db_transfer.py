@@ -1,22 +1,19 @@
-﻿#!/usr/bin/python
+#!/usr/bin/python
 # -*- coding: UTF-8 -*-
-
 import logging
-import time
-import sys
 import sqlite3
-from server_pool import ServerPool
+import threading
 import traceback
-from shadowsocks import common, shell, lru_cache, obfs
+from server_pool import ServerPool
+from shadowsocks import eventloop
 
-db_instance = None #存储自身实例
+db_instance = None
 
 class TransferBase(object):
 	def __init__(self):
-		import threading
 		self.event = threading.Event()
-		self.last_update_transfer = {} #历史增量之和
-		self.force_update_transfer = {} #强制更新表
+		self.last_update_transfer = {}
+		self.force_update_transfer = {}
 		self.pull_ok = False
 
 	def push_db_all_user(self):
@@ -63,6 +60,8 @@ class TransferBase(object):
 			for param_key in read_config_keys:
 				if param_key in row and row[param_key]:
 					cfg[param_key] = row[param_key]
+				else:
+					cfg[param_key] = ""
 			merge_config_keys = ['password'] + read_config_keys
 			for name in cfg.keys():
 				if hasattr(cfg[name], 'encode'):
@@ -77,9 +76,9 @@ class TransferBase(object):
 				continue
 			#处理参数变更和需要新增的服务端口
 			if port in cur_running:
-				port_param = ServerPool.get_instance().get_config(port)
+				port_running_param = ServerPool.get_instance().get_config(port)
 				for name in merge_config_keys:
-					if port_param and cfg[name] and port_param[name] and not self.cmp(cfg[name], port_param[name]):
+					if cfg[name] and port_running_param[name] and not self.cmp(cfg[name], port_running_param[name]):
 						self.force_update_transfer[port] = ServerPool.get_instance().get_server_transfer(port)
 						ServerPool.get_instance().cb_del_server(port)
 						new_servers[port] = (passwd, cfg)
@@ -106,11 +105,23 @@ class TransferBase(object):
 			logging.info("%s:%s"%(hersh,cfg[hersh]))
 		ServerPool.get_instance().new_server(port, cfg)
 
+	def to_bytes(self, s):
+		if bytes != str:
+			if type(s) == str:
+				return s.encode('utf-8')
+		return s
+
+	def to_str(self, s):
+		if bytes != str:
+			if type(s) == bytes:
+				return s.decode('utf-8')
+		return s
+
 	def cmp(self, val1, val2):
 		if type(val1) is bytes:
-			val1 = common.to_str(val1)
+			val1 = self.to_str(val1)
 		if type(val2) is bytes:
-			val2 = common.to_str(val2)
+			val2 = self.to_str(val2)
 		return val1 == val2
 
 	@staticmethod
@@ -122,7 +133,6 @@ class TransferBase(object):
 	@staticmethod
 	def thread_db(obj):
 		global db_instance
-		last_rows = [] #上次读取的参数
 		db_instance = obj()
 		ServerPool.get_instance()
 		try:
@@ -135,8 +145,7 @@ class TransferBase(object):
 					if rows:
 						db_instance.pull_ok = True
 					#①停止超流的服务,②重启配置更改的服务,③启动新增的服务
-					db_instance.del_server_out_of_bound_safe(last_rows, rows)
-					last_rows = rows
+					db_instance.del_server_out_of_bound_safe(rows)
 				except Exception as e:
 					trace = traceback.format_exc()
 					logging.error(trace)
@@ -154,13 +163,27 @@ class TransferBase(object):
 		db_instance.event.set()
 
 class SqliteTransfer(TransferBase):
+	'''
+	基本字段结构,表名(userlist):
+	u:上传流量,
+	d:下载流量,
+	quota:流量配额,
+	port:服务端口号,
+	passwd:服务密码,
+	method:加密方法,
+	protocol:协议方法,
+	protocol_param:协议参数,
+	obfs:混淆方法,
+	obfs_param:混淆方式,
+	speed_limit_per_user:端口限速,
+	'''
 	def __init__(self):
 		try:
 			db=sqlite3.connect('./userdb.dat',isolation_level=None)
 			db.row_factory=self.dict_factory
 			self.cursor=db.cursor()
 		except:
-			logging.error("连接数据库文件'./userdb.dat'失败！")
+			logging.error("连接数据库文件'./userdb.dat'失败!")
 			return
 		super(SqliteTransfer, self).__init__()
 
